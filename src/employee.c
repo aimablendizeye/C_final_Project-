@@ -12,13 +12,24 @@
 #include "employee.h"
 #include <ctype.h>
 #include <commctrl.h>
+#include "history.h"
 
 /* IDs for form fields */
 #define ID_VIEW_EMPLOYEES 212
 
 HWND listWindow = NULL;
 HWND employeeTable = NULL;
+HWND minimumWageInput = NULL;
 
+HWND updateWindow = NULL;
+HWND updateFields[5];
+
+char updateEmployeeID[20];
+
+double minimumWage = 0.0;
+
+#define ID_MIN_WAGE_INPUT 213
+#define ID_APPLY_MIN_WAGE 214
 #define ID_EMPLOYEE_ID  201
 #define ID_FULL_NAME    202
 #define ID_NATIONAL_ID  203
@@ -29,7 +40,15 @@ HWND employeeTable = NULL;
 #define ID_BANK_ACCOUNT 208
 #define ID_SALARY       209
 #define ID_REGISTER     210
+#define ID_TERMINATE_EMPLOYEE 215
+#define ID_UPDATE_EMPLOYEE 216
+#define ID_SAVE_UPDATE 217
 
+#define ID_UPDATE_DEPARTMENT 218
+#define ID_UPDATE_JOB 219
+#define ID_UPDATE_TYPE 220
+#define ID_UPDATE_SALARY 221
+#define ID_UPDATE_STATUS 222
 /* Store the form controls */
 HWND fields[10];
 
@@ -522,6 +541,10 @@ void RegisterEmployee(HWND hwnd)
     SetFocus(fields[0]);
 }
 
+void TerminateSelectedEmployee(HWND hwnd);
+void ShowUpdateEmployeeForm(HWND hwnd);
+void SaveEmployeeUpdate(HWND hwnd);
+
 
 
 /* Resize the employee table when its window changes size */
@@ -533,16 +556,122 @@ LRESULT CALLBACK EmployeeListProc(
         case WM_SIZE:
             if (employeeTable != NULL)
             {
-                MoveWindow(employeeTable, 10, 10,
+                MoveWindow(employeeTable, 10, 55,
                     LOWORD(lParam) - 20,
-                    HIWORD(lParam) - 20, TRUE);
+                    HIWORD(lParam) - 65, TRUE);
             }
             return 0;
+
+        case WM_COMMAND:
+
+            if (LOWORD(wParam) == ID_UPDATE_EMPLOYEE)
+{
+            ShowUpdateEmployeeForm(hwnd);
+              return 0;
+}
+            if (LOWORD(wParam) == ID_TERMINATE_EMPLOYEE)
+{
+                TerminateSelectedEmployee(hwnd);
+              return 0;
+}
+
+            if (LOWORD(wParam) == ID_APPLY_MIN_WAGE)
+            {
+                char text[50];
+                char *endPointer;
+
+                GetWindowTextA(
+                    minimumWageInput, text, sizeof(text));
+
+                double amount = strtod(text, &endPointer);
+
+                if (endPointer == text ||
+                    *endPointer != '\0' ||
+                    amount < 0)
+                {
+                    MessageBoxA(hwnd,
+                        "Enter a valid minimum wage (zero or greater).",
+                        "Invalid Amount",
+                        MB_OK | MB_ICONWARNING);
+                    return 0;
+                }
+
+                minimumWage = amount;
+
+                InvalidateRect(employeeTable, NULL, TRUE);
+
+                MessageBoxA(hwnd,
+                    "Minimum wage updated successfully.",
+                    "Success",
+                    MB_OK | MB_ICONINFORMATION);
+
+                return 0;
+            }
+
+            break;
+
+        case WM_NOTIFY:
+        {
+            LPNMHDR header = (LPNMHDR)lParam;
+
+            if (header->hwndFrom == employeeTable &&
+                header->code == NM_CUSTOMDRAW)
+            {
+                LPNMLVCUSTOMDRAW draw =
+                    (LPNMLVCUSTOMDRAW)lParam;
+
+                if (draw->nmcd.dwDrawStage == CDDS_PREPAINT)
+                    return CDRF_NOTIFYITEMDRAW;
+
+                if (draw->nmcd.dwDrawStage == CDDS_ITEMPREPAINT)
+                {
+                    int row = (int)draw->nmcd.dwItemSpec;
+
+                    char status[30] = "";
+                    char type[30] = "";
+                    char salaryText[40] = "";
+
+                    ListView_GetItemText(
+                        employeeTable, row, 9, status, sizeof(status));
+
+                    ListView_GetItemText(
+                        employeeTable, row, 5, type, sizeof(type));
+
+                    ListView_GetItemText(
+                        employeeTable, row, 8,
+                        salaryText, sizeof(salaryText));
+
+                    double salary = atof(salaryText);
+
+                    if (strcmp(status, "Terminated") == 0)
+                    {
+                        draw->clrTextBk = RGB(210, 210, 210);
+                        draw->clrText = RGB(100, 100, 100);
+                    }
+                    else if (minimumWage > 0 &&
+                             salary < minimumWage)
+                    {
+                        draw->clrTextBk = RGB(255, 220, 220);
+                        draw->clrText = RGB(180, 0, 0);
+                    }
+                    else if (strcmp(type, "Intern") == 0)
+                    {
+                        draw->clrTextBk = RGB(210, 230, 255);
+                        draw->clrText = RGB(0, 50, 130);
+                    }
+
+                    return CDRF_DODEFAULT;
+                }
+            }
+
+            break;
+        }
 
         case WM_CLOSE:
             DestroyWindow(hwnd);
             listWindow = NULL;
             employeeTable = NULL;
+            minimumWageInput = NULL;
             return 0;
     }
 
@@ -625,13 +754,63 @@ void ShowEmployeeList(HWND hwnd)
     if (listWindow == NULL)
         return;
 
+    CreateWindowA(
+    "STATIC",
+    "Minimum Wage:",
+    WS_CHILD | WS_VISIBLE,
+    10, 15, 110, 25,
+    listWindow, NULL,
+    GetModuleHandleA(NULL), NULL
+);
+
+minimumWageInput = CreateWindowExA(
+    WS_EX_CLIENTEDGE,
+    "EDIT",
+    "0",
+    WS_CHILD | WS_VISIBLE | ES_AUTOHSCROLL,
+    120, 12, 150, 27,
+    listWindow,
+    (HMENU)(INT_PTR)ID_MIN_WAGE_INPUT,
+    GetModuleHandleA(NULL), NULL
+);
+
+CreateWindowA(
+    "BUTTON",
+    "Apply",
+    WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+    285, 12, 100, 28,
+    listWindow,
+    (HMENU)(INT_PTR)ID_APPLY_MIN_WAGE,
+    GetModuleHandleA(NULL), NULL
+);
+
+CreateWindowA(
+    "BUTTON",
+    "Terminate Selected",
+    WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+    400, 12, 150, 28,
+    listWindow,
+    (HMENU)(INT_PTR)ID_TERMINATE_EMPLOYEE,
+    GetModuleHandleA(NULL), NULL
+);
+
+CreateWindowA(
+    "BUTTON",
+    "Update Selected",
+    WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+    560, 12, 140, 28,
+    listWindow,
+    (HMENU)(INT_PTR)ID_UPDATE_EMPLOYEE,
+    GetModuleHandleA(NULL), NULL
+);
+
     employeeTable = CreateWindowExA(
         WS_EX_CLIENTEDGE,
         "SysListView32",
         "",
         WS_CHILD | WS_VISIBLE | LVS_REPORT |
         LVS_SINGLESEL | LVS_SHOWSELALWAYS,
-        10, 10, 1210, 500,
+        10, 55, 1210, 440,
         listWindow, NULL,
         GetModuleHandleA(NULL), NULL
     );
@@ -692,4 +871,391 @@ void ShowEmployeeList(HWND hwnd)
     }
 
     fclose(file);
+}
+
+void TerminateSelectedEmployee(HWND hwnd)
+{
+    int row = ListView_GetNextItem(
+        employeeTable, -1, LVNI_SELECTED);
+
+    if (row == -1)
+    {
+        MessageBoxA(hwnd,
+            "Please select an employee first.",
+            "No Employee Selected",
+            MB_OK | MB_ICONWARNING);
+        return;
+    }
+
+    char employeeID[30] = "";
+
+    ListView_GetItemText(
+        employeeTable, row, 0,
+        employeeID, sizeof(employeeID));
+
+    char message[150];
+
+    sprintf(message,
+        "Are you sure you want to terminate employee %s?",
+        employeeID);
+
+    if (MessageBoxA(hwnd, message,
+        "Confirm Termination",
+        MB_YESNO | MB_ICONQUESTION) != IDYES)
+    {
+        return;
+    }
+
+    FILE *file = fopen("database/employees.dat", "r+b");
+
+    if (file == NULL)
+    {
+        MessageBoxA(hwnd,
+            "Could not open the employee database.",
+            "File Error",
+            MB_OK | MB_ICONERROR);
+        return;
+    }
+
+    Employee employee;
+    int found = 0;
+
+    while (fread(&employee, sizeof(Employee), 1, file) == 1)
+    {
+        if (strcmp(employee.employeeID, employeeID) == 0)
+        {
+            strcpy(employee.status, "Terminated");
+
+            fseek(file, -(long)sizeof(Employee), SEEK_CUR);
+
+            if (fwrite(&employee, sizeof(Employee), 1, file) == 1)
+                found = 1;
+
+            break;
+        }
+    }
+
+    fclose(file);
+
+    if (!found)
+    {
+        MessageBoxA(hwnd,
+            "Employee could not be updated.",
+            "Error",
+            MB_OK | MB_ICONERROR);
+        return;
+    }
+
+    /* Refresh the table */
+    ListView_DeleteAllItems(employeeTable);
+
+    file = fopen("database/employees.dat", "rb");
+
+    if (file != NULL)
+    {
+        while (fread(&employee, sizeof(Employee), 1, file) == 1)
+        {
+            AddEmployeeRow(employee);
+        }
+
+        fclose(file);
+    }
+
+    MessageBoxA(hwnd,
+        "Employee has been terminated successfully.",
+        "Success",
+        MB_OK | MB_ICONINFORMATION);
+}
+
+/* Update form window procedure */
+LRESULT CALLBACK UpdateEmployeeProc(
+    HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
+{
+    switch (msg)
+    {
+        case WM_COMMAND:
+            if (LOWORD(wParam) == ID_SAVE_UPDATE)
+            {
+                SaveEmployeeUpdate(hwnd);
+                return 0;
+            }
+            break;
+
+        case WM_CLOSE:
+            DestroyWindow(hwnd);
+            updateWindow = NULL;
+            return 0;
+
+        case WM_DESTROY:
+            updateWindow = NULL;
+            return 0;
+    }
+
+    return DefWindowProcA(hwnd, msg, wParam, lParam);
+}
+
+/* Open the update form for the selected employee */
+void ShowUpdateEmployeeForm(HWND hwnd)
+{
+    int row = ListView_GetNextItem(
+        employeeTable, -1, LVNI_SELECTED);
+
+    if (row == -1)
+    {
+        MessageBoxA(hwnd,
+            "Please select an employee first.",
+            "No Employee Selected",
+            MB_OK | MB_ICONWARNING);
+        return;
+    }
+
+    GetWindowTextA(employeeTable, updateEmployeeID,
+                   sizeof(updateEmployeeID));
+
+    ListView_GetItemText(employeeTable, row, 0,
+                         updateEmployeeID,
+                         sizeof(updateEmployeeID));
+
+    Employee employee;
+    int found = 0;
+
+    FILE *file = fopen("database/employees.dat", "rb");
+
+    if (file == NULL)
+    {
+        MessageBoxA(hwnd, "Could not open employee database.",
+                    "File Error", MB_OK | MB_ICONERROR);
+        return;
+    }
+
+    while (fread(&employee, sizeof(Employee), 1, file) == 1)
+    {
+        if (strcmp(employee.employeeID, updateEmployeeID) == 0)
+        {
+            found = 1;
+            break;
+        }
+    }
+
+    fclose(file);
+
+    if (!found)
+    {
+        MessageBoxA(hwnd, "Employee record was not found.",
+                    "Error", MB_OK | MB_ICONERROR);
+        return;
+    }
+
+    if (updateWindow != NULL && IsWindow(updateWindow))
+    {
+        DestroyWindow(updateWindow);
+    }
+
+    static int classRegistered = 0;
+
+    if (!classRegistered)
+    {
+        WNDCLASSA wc = {0};
+
+        wc.lpfnWndProc = UpdateEmployeeProc;
+        wc.hInstance = GetModuleHandleA(NULL);
+        wc.lpszClassName = "UpdateEmployeeWindow";
+        wc.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
+        wc.hCursor = LoadCursorA(NULL, IDC_ARROW);
+
+        if (!RegisterClassA(&wc))
+        {
+            MessageBoxA(hwnd, "Could not create update form.",
+                        "Error", MB_OK | MB_ICONERROR);
+            return;
+        }
+
+        classRegistered = 1;
+    }
+
+    updateWindow = CreateWindowExA(
+        0,
+        "UpdateEmployeeWindow",
+        "Update Employee",
+        WS_OVERLAPPEDWINDOW | WS_VISIBLE,
+        CW_USEDEFAULT, CW_USEDEFAULT,
+        550, 450,
+        hwnd, NULL,
+        GetModuleHandleA(NULL), NULL
+    );
+
+    if (updateWindow == NULL)
+        return;
+
+    CreateLabel(updateWindow, "Department:", 30, 30, 140);
+
+    const char *departments[] = {
+        "Finance", "IT", "Sales", "Operations", "HR", NULL
+    };
+
+    updateFields[0] = CreateDropdown(
+        updateWindow, ID_UPDATE_DEPARTMENT,
+        180, 30, 280, departments);
+
+    CreateLabel(updateWindow, "Job Title:", 30, 90, 140);
+
+    updateFields[1] = CreateInput(
+        updateWindow, ID_UPDATE_JOB, 180, 90, 280);
+
+    CreateLabel(updateWindow, "Employment Type:", 30, 150, 140);
+
+    const char *types[] = {
+        "Permanent", "Contract", "Intern", NULL
+    };
+
+    updateFields[2] = CreateDropdown(
+        updateWindow, ID_UPDATE_TYPE,
+        180, 150, 280, types);
+
+    CreateLabel(updateWindow, "Basic Salary:", 30, 210, 140);
+
+    updateFields[3] = CreateInput(
+        updateWindow, ID_UPDATE_SALARY, 180, 210, 280);
+
+    CreateLabel(updateWindow, "Employee Status:", 30, 270, 140);
+
+    const char *statuses[] = {
+        "Active", "On Leave", "Terminated", NULL
+    };
+
+    updateFields[4] = CreateDropdown(
+        updateWindow, ID_UPDATE_STATUS,
+        180, 270, 280, statuses);
+
+    /* Display the employee's current information */
+    SendMessageA(updateFields[0], CB_SELECTSTRING,
+                 (WPARAM)-1, (LPARAM)employee.department);
+
+    SetWindowTextA(updateFields[1], employee.jobTitle);
+
+    SendMessageA(updateFields[2], CB_SELECTSTRING,
+                 (WPARAM)-1, (LPARAM)employee.employmentType);
+
+    char salaryText[40];
+    sprintf(salaryText, "%.2f", employee.basicSalary);
+
+    SetWindowTextA(updateFields[3], salaryText);
+
+    SendMessageA(updateFields[4], CB_SELECTSTRING,
+                 (WPARAM)-1, (LPARAM)employee.status);
+
+    CreateWindowA(
+        "BUTTON", "Save Changes",
+        WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+        180, 340, 150, 40,
+        updateWindow,
+        (HMENU)(INT_PTR)ID_SAVE_UPDATE,
+        GetModuleHandleA(NULL), NULL
+    );
+}
+
+
+/* Save the employee's updated information */
+void SaveEmployeeUpdate(HWND hwnd)
+{
+    Employee employee;
+    char salaryText[50];
+    char *endPointer;
+    double salary;
+
+    char department[30];
+    char jobTitle[50];
+    char employmentType[20];
+    char status[20];
+
+    GetWindowTextA(updateFields[0], department, sizeof(department));
+    GetWindowTextA(updateFields[1], jobTitle, sizeof(jobTitle));
+    GetWindowTextA(updateFields[2], employmentType, sizeof(employmentType));
+    GetWindowTextA(updateFields[3], salaryText, sizeof(salaryText));
+    GetWindowTextA(updateFields[4], status, sizeof(status));
+
+    if (IsBlank(department) ||
+        IsBlank(jobTitle) ||
+        IsBlank(employmentType) ||
+        IsBlank(salaryText) ||
+        IsBlank(status))
+    {
+        MessageBoxA(hwnd, "Please complete all fields.",
+                    "Missing Information",
+                    MB_OK | MB_ICONWARNING);
+        return;
+    }
+
+    salary = strtod(salaryText, &endPointer);
+
+    if (endPointer == salaryText ||
+        *endPointer != '\0' || salary <= 0)
+    {
+        MessageBoxA(hwnd,
+            "Please enter a valid salary greater than zero.",
+            "Invalid Salary",
+            MB_OK | MB_ICONWARNING);
+        return;
+    }
+
+    FILE *file = fopen("database/employees.dat", "r+b");
+
+    if (file == NULL)
+    {
+        MessageBoxA(hwnd, "Could not open employee database.",
+                    "File Error", MB_OK | MB_ICONERROR);
+        return;
+    }
+
+    int found = 0;
+
+    while (fread(&employee, sizeof(Employee), 1, file) == 1)
+    {
+        if (strcmp(employee.employeeID, updateEmployeeID) == 0)
+        {
+            strcpy(employee.department, department);
+            strcpy(employee.jobTitle, jobTitle);
+            strcpy(employee.employmentType, employmentType);
+            strcpy(employee.status, status);
+            employee.basicSalary = salary;
+
+            fseek(file, -(long)sizeof(Employee), SEEK_CUR);
+
+            if (fwrite(&employee, sizeof(Employee), 1, file) == 1)
+                found = 1;
+
+            break;
+        }
+    }
+
+    fclose(file);
+
+    if (!found)
+    {
+        MessageBoxA(hwnd, "Could not update employee record.",
+                    "Update Error", MB_OK | MB_ICONERROR);
+        return;
+    }
+
+    /* Refresh the employee table */
+    ListView_DeleteAllItems(employeeTable);
+
+    file = fopen("database/employees.dat", "rb");
+
+    if (file != NULL)
+    {
+        while (fread(&employee, sizeof(Employee), 1, file) == 1)
+        {
+            AddEmployeeRow(employee);
+        }
+
+        fclose(file);
+    }
+
+    MessageBoxA(hwnd,
+        "Employee information updated successfully!",
+        "Update Successful",
+        MB_OK | MB_ICONINFORMATION);
+
+    DestroyWindow(hwnd);
 }

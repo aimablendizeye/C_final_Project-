@@ -1,6 +1,10 @@
 
 #include <windows.h>
 #include "employee.h"
+#include "attendance.h"
+#include "payroll.h"
+#include "payslip.h"
+#include "history.h"
 
 /* Navigation button IDs */
 #define ID_DASHBOARD  101
@@ -105,25 +109,21 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg,
                     ShowEmployeeForm(hwnd);
                     break;
 
-                case ID_ATTENDANCE:
-                    MessageBoxA(hwnd, "Attendance Management is coming soon.",
-                                "Attendance", MB_OK);
+               case ID_ATTENDANCE:
+                    ShowAttendanceForm(hwnd);
                     break;
 
-                case ID_PAYROLL:
-                    MessageBoxA(hwnd, "Payroll Management is coming soon.",
-                                "Payroll", MB_OK);
-                    break;
+              case ID_PAYROLL:
+                   ShowPayrollForm(hwnd);
+                   break;
 
-                case ID_PAYSLIPS:
-                    MessageBoxA(hwnd, "Payslip Management is coming soon.",
-                                "Payslips", MB_OK);
-                    break;
+              case ID_PAYSLIPS:
+                   ShowPayslipForm(hwnd);
+                   break;
 
-                case ID_HISTORY:
-                    MessageBoxA(hwnd, "System History is coming soon.",
-                                "History", MB_OK);
-                    break;
+             case ID_HISTORY:
+                  ShowHistoryForm(hwnd);
+                  break;
 
                 case ID_REPORTS:
                     MessageBoxA(hwnd, "Payroll Reports are coming soon.",
