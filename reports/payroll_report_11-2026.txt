@@ -1,0 +1,31 @@
+========== MONTHLY PAYROLL REPORT ==========
+Pay Month: 11-2026
+
+EMPLOYEE SUMMARY
+--------------------------------------------
+Total Active Employees: 2
+Finance Department: 2 employees
+IT Department: 0 employees
+Sales Department: 0 employees
+Operations Department: 0 employees
+HR Department: 0 employees
+
+PAYROLL SUMMARY
+--------------------------------------------
+Payroll Records: 0
+Total Gross Salary: 0.00
+Total Deductions: 0.00
+Total Net Salary Paid: 0.00
+Income Tax Remittance: 0.00
+Social Security Remittance: 0.00
+
+PAYROLL HIGHLIGHTS
+--------------------------------------------
+Highest Paid Employee: No payroll records
+Department Payroll Cost: No records
+
+EMPLOYEES WITH MORE THAN 3 ABSENT DAYS
+--------------------------------------------
+No employees with more than 3 absent days.
+
+========== END OF REPORT ==========

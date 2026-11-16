@@ -290,6 +290,8 @@ void SaveAttendance(HWND hwnd)
 
     fclose(file);
 
+    
+
 /* Record this activity in history */
 AddHistoryRecord(
     "Attendance Saved",

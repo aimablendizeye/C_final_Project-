@@ -526,10 +526,18 @@ void RegisterEmployee(HWND hwnd)
 
     fclose(file);
 
-    MessageBoxA(hwnd,
-        "Employee registered successfully!",
-        "Registration Successful",
-        MB_OK | MB_ICONINFORMATION);
+/* Record employee registration in history */
+AddHistoryRecord(
+    "Employee Registered",
+    employee.employeeID,
+    "",
+    "New employee registered successfully"
+);
+
+MessageBoxA(hwnd,
+    "Employee registered successfully!",
+    "Registration Successful",
+    MB_OK | MB_ICONINFORMATION);
 
     /* Clear the form for the next employee */
     for (int i = 0; i < 9; i++)
@@ -946,6 +954,14 @@ void TerminateSelectedEmployee(HWND hwnd)
         return;
     }
 
+    /* Record employee termination in history */
+    AddHistoryRecord(
+    "Employee Terminated",
+    employeeID,
+    "",
+    "Employee status changed to Terminated"
+   );
+
     /* Refresh the table */
     ListView_DeleteAllItems(employeeTable);
 
@@ -1208,11 +1224,13 @@ void SaveEmployeeUpdate(HWND hwnd)
     }
 
     int found = 0;
+    double oldSalary = 0.0;
 
     while (fread(&employee, sizeof(Employee), 1, file) == 1)
     {
         if (strcmp(employee.employeeID, updateEmployeeID) == 0)
         {
+            oldSalary = employee.basicSalary;
             strcpy(employee.department, department);
             strcpy(employee.jobTitle, jobTitle);
             strcpy(employee.employmentType, employmentType);
@@ -1236,6 +1254,33 @@ void SaveEmployeeUpdate(HWND hwnd)
                     "Update Error", MB_OK | MB_ICONERROR);
         return;
     }
+
+    /* Record employee update in history */
+char historyDetails[200];
+
+if (oldSalary != salary)
+{
+    sprintf(
+        historyDetails,
+        "Employee details updated; salary changed from %.2f to %.2f",
+        oldSalary,
+        salary
+    );
+}
+else
+{
+    strcpy(
+        historyDetails,
+        "Employee department, job title, employment type or status updated"
+    );
+}
+
+AddHistoryRecord(
+    "Employee Updated",
+    updateEmployeeID,
+    "",
+    historyDetails
+);
 
     /* Refresh the employee table */
     ListView_DeleteAllItems(employeeTable);

@@ -1,10 +1,13 @@
 
 #include <windows.h>
+#include <stdio.h>
+#include <string.h>
 #include "employee.h"
 #include "attendance.h"
 #include "payroll.h"
 #include "payslip.h"
 #include "history.h"
+#include "report.h"
 
 /* Navigation button IDs */
 #define ID_DASHBOARD  101
@@ -87,6 +90,135 @@ void CreateNavigationButtons(HWND hwnd)
     }
 }
 
+
+/* Calculate dashboard statistics from saved files */
+void LoadDashboardData(
+    char *employeeText,
+    char *grossText,
+    char *netText,
+    char *attendanceText,
+    char *departmentText)
+{
+    int activeEmployees = 0;
+    int departmentCounts[5] = {0};
+
+    double totalGross = 0;
+    double totalNet = 0;
+
+    int totalWorked = 0;
+    int totalAbsent = 0;
+
+    const char *departments[] = {
+        "Finance", "IT", "Sales", "Operations", "HR"
+    };
+
+    /* Get current month */
+    SYSTEMTIME currentTime;
+    GetLocalTime(&currentTime);
+
+    char month[10];
+
+    sprintf(month, "%02d-%04d",
+            currentTime.wMonth,
+            currentTime.wYear);
+
+    /* Read employee records */
+    FILE *file = fopen("database/employees.dat", "rb");
+
+    if (file != NULL)
+    {
+        Employee e;
+
+        while (fread(&e, sizeof(Employee), 1, file) == 1)
+        {
+            if (strcmp(e.status, "Active") == 0)
+            {
+                activeEmployees++;
+
+                for (int i = 0; i < 5; i++)
+                {
+                    if (strcmp(e.department, departments[i]) == 0)
+                        departmentCounts[i]++;
+                }
+            }
+        }
+
+        fclose(file);
+    }
+
+    /* Read payroll records for current month */
+    file = fopen("database/payroll.dat", "rb");
+
+    if (file != NULL)
+    {
+        Payroll p;
+
+        while (fread(&p, sizeof(Payroll), 1, file) == 1)
+        {
+            if (strcmp(p.payMonth, month) == 0)
+            {
+                totalGross += p.grossSalary;
+                totalNet += p.netSalary;
+            }
+        }
+
+        fclose(file);
+    }
+
+    /* Read attendance records for current month */
+    file = fopen("database/attendance.dat", "rb");
+
+    if (file != NULL)
+    {
+        Attendance a;
+
+        while (fread(&a, sizeof(Attendance), 1, file) == 1)
+        {
+            if (strcmp(a.payMonth, month) == 0)
+            {
+                totalWorked += a.daysWorked;
+                totalAbsent += a.daysAbsent;
+            }
+        }
+
+        fclose(file);
+    }
+
+    /* Prepare dashboard card values */
+    sprintf(employeeText, "%d", activeEmployees);
+
+    sprintf(grossText, "%.2f", totalGross);
+
+    sprintf(netText, "%.2f", totalNet);
+
+    double attendanceRate = 0;
+
+    if (totalWorked + totalAbsent > 0)
+    {
+        attendanceRate =
+            (double)totalWorked /
+            (totalWorked + totalAbsent) * 100;
+    }
+
+    sprintf(attendanceText, "%.1f%%", attendanceRate);
+
+    /* Prepare department overview */
+    sprintf(
+        departmentText,
+        "Finance: %d employees\n"
+        "IT: %d employees\n"
+        "Sales: %d employees\n"
+        "Operations: %d employees\n"
+        "HR: %d employees",
+        departmentCounts[0],
+        departmentCounts[1],
+        departmentCounts[2],
+        departmentCounts[3],
+        departmentCounts[4]
+    );
+}
+
+
 /* Main window procedure */
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg,
                             WPARAM wParam, LPARAM lParam)
@@ -125,10 +257,9 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg,
                   ShowHistoryForm(hwnd);
                   break;
 
-                case ID_REPORTS:
-                    MessageBoxA(hwnd, "Payroll Reports are coming soon.",
-                                "Reports", MB_OK);
-                    break;
+            case ID_REPORTS:
+                 ShowReportForm(hwnd);
+                 break;
             }
             return 0;
 
@@ -230,6 +361,10 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg,
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
                    LPSTR lpCmdLine, int nCmdShow)
 {
+    /* Create required storage folders if they do not exist */
+     CreateDirectoryA("database", NULL);
+     CreateDirectoryA("reports", NULL);
+     CreateDirectoryA("payslips", NULL);
     const char CLASS_NAME[] = "PayrollWindow";
 
     WNDCLASSA wc = {0};
