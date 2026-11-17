@@ -17,6 +17,8 @@
 #define ID_PAYSLIPS   105
 #define ID_HISTORY    106
 #define ID_REPORTS    107
+#define ID_REFRESH_DASHBOARD 108
+
 
 /* Function to draw text */
 void DrawLabel(HDC hdc, const char *text, int x, int y,
@@ -34,21 +36,38 @@ void DrawLabel(HDC hdc, const char *text, int x, int y,
 }
 
 /* Function to draw dashboard cards */
-void DrawCard(HDC hdc, int x, const char *title,
-              const char *value, HFONT titleFont, HFONT valueFont)
+void DrawCard(
+    HDC hdc,
+    int x,
+    int y,
+    const char *title,
+    const char *value,
+    HFONT titleFont,
+    HFONT valueFont)
 {
-    RECT card = {x, 150, x + 245, 270};
+    RECT card = {x, y, x + 245, y + 120};
 
     HBRUSH brush = CreateSolidBrush(RGB(255, 255, 255));
+
     FillRect(hdc, &card, brush);
+
     DeleteObject(brush);
 
-    DrawLabel(hdc, title, x + 20, 165, 205, 30,
+    DrawLabel(hdc, title,
+              x + 20, y + 15, 205, 30,
               titleFont, RGB(100, 110, 125));
 
-    DrawLabel(hdc, value, x + 20, 205, 205, 45,
+    DrawLabel(hdc, value,
+              x + 20, y + 55, 205, 45,
               valueFont, RGB(30, 45, 65));
 }
+
+/* Dashboard statistics */
+char dashboardEmployees[30] = "0";
+char dashboardGross[50] = "0.00";
+char dashboardNet[50] = "0.00";
+char dashboardAttendance[30] = "0%";
+char dashboardDepartments[500] = "";
 
 /* Create the dashboard navigation buttons */
 void CreateNavigationButtons(HWND hwnd)
@@ -218,6 +237,78 @@ void LoadDashboardData(
     );
 }
 
+void LoadRecentActivities(char *activityText)
+{
+    char lines[5][500] = {0};
+    int count = 0;
+
+    FILE *file = fopen("database/history.txt", "r");
+
+    if (file == NULL)
+    {
+        strcpy(activityText, "No activities recorded yet.");
+        return;
+    }
+
+    char line[500];
+
+    while (fgets(line, sizeof(line), file) != NULL)
+    {
+        line[strcspn(line, "\r\n")] = '\0';
+
+        if (strlen(line) == 0)
+            continue;
+
+        if (count < 5)
+        {
+            strcpy(lines[count], line);
+            count++;
+        }
+        else
+        {
+            for (int i = 0; i < 4; i++)
+                strcpy(lines[i], lines[i + 1]);
+
+            strcpy(lines[4], line);
+        }
+    }
+
+    fclose(file);
+
+    activityText[0] = '\0';
+
+    if (count == 0)
+    {
+        strcpy(activityText, "No activities recorded yet.");
+        return;
+    }
+
+    for (int i = count - 1; i >= 0; i--)
+    {
+        strcat(activityText, lines[i]);
+        strcat(activityText, "\n");
+    }
+}
+
+void RefreshDashboard(HWND hwnd)
+{
+    LoadDashboardData(
+        dashboardEmployees,
+        dashboardGross,
+        dashboardNet,
+        dashboardAttendance,
+        dashboardDepartments
+        
+    );
+
+   
+
+    InvalidateRect(hwnd, NULL, TRUE);
+}
+
+ char dashboardActivities[2600] = "";
+
+
 
 /* Main window procedure */
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg,
@@ -225,13 +316,39 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg,
 {
     switch (uMsg)
     {
-        case WM_CREATE:
-            CreateNavigationButtons(hwnd);
-            return 0;
+       case WM_CREATE:
 
+            CreateNavigationButtons(hwnd);
+
+        CreateWindowA(
+           "BUTTON",
+           "Refresh Dashboard",
+           WS_VISIBLE | WS_CHILD | BS_PUSHBUTTON,
+           900, 105, 140, 30,
+           hwnd,
+           (HMENU)ID_REFRESH_DASHBOARD,
+            GetModuleHandle(NULL),
+            NULL
+            );
+
+            LoadDashboardData(
+            dashboardEmployees,
+            dashboardGross,
+            dashboardNet,
+            dashboardAttendance,
+            dashboardDepartments
+    );
+
+    LoadRecentActivities(dashboardActivities);
+
+    return 0;
         case WM_COMMAND:
             switch (LOWORD(wParam))
             {
+
+                case ID_REFRESH_DASHBOARD:
+                     RefreshDashboard(hwnd);
+                     break;
                 case ID_DASHBOARD:
                     MessageBoxA(hwnd, "You are on the Dashboard.",
                                 "Dashboard", MB_OK);
@@ -323,14 +440,63 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg,
                       normalFont, RGB(100, 110, 125));
 
             /* Summary cards */
-            DrawCard(hdc, 250, "Total Employees",
-                     "0", smallFont, headingFont);
+         DrawCard(hdc, 250, 150, "Active Employees",
+         dashboardEmployees, smallFont, headingFont);
 
-            DrawCard(hdc, 520, "Monthly Payroll",
-                     "0.00", smallFont, headingFont);
+         DrawCard(hdc, 520, 150, "Gross Payroll",
+         dashboardGross, smallFont, headingFont);
 
-            DrawCard(hdc, 790, "Attendance",
-                     "0%", smallFont, headingFont);
+         DrawCard(hdc, 790, 150, "Attendance Rate",
+         dashboardAttendance, smallFont, headingFont);
+
+         DrawCard(hdc, 250, 290, "Net Salary Paid",
+         dashboardNet, smallFont, headingFont);
+
+
+         /* System Overview */
+/* System Overview */
+DrawLabel(
+    hdc,
+    "Employees by Department",
+    250, 445, 350, 35,
+    headingFont,
+    RGB(30, 45, 65)
+);
+
+RECT overviewRect = {250, 485, 600, 650};
+
+DrawLabel(
+    hdc,
+    "Recent System Activities",
+    650, 445, 400, 35,
+    headingFont,
+    RGB(30, 45, 65)
+);
+
+RECT activityRect = {650, 485, 1100, 650};
+
+SetTextColor(hdc, RGB(80, 90, 105));
+SetBkMode(hdc, TRANSPARENT);
+
+HFONT oldFont = (HFONT)SelectObject(hdc, smallFont);
+
+DrawTextA(
+    hdc,
+    dashboardDepartments,
+    -1,
+    &overviewRect,
+    DT_LEFT | DT_TOP
+);
+
+DrawTextA(
+    hdc,
+    dashboardActivities,
+    -1,
+    &activityRect,
+    DT_LEFT | DT_TOP
+);
+
+SelectObject(hdc, oldFont);
 
             /* Lower dashboard section */
             DrawLabel(hdc, "System Overview",
